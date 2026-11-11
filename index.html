@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1b2d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Walk 10k">
+<title>Walk 10k</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230f1b2d'/%3E%3Ctext x='50' y='68' font-size='56' text-anchor='middle'%3E%F0%9F%9A%B6%3C/text%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%233f6b4f'/%3E%3Ctext x='50' y='68' font-size='56' text-anchor='middle'%3E%F0%9F%9A%B6%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{
+  --bg:#0f1b2d; --panel:#16263d; --panel2:#1c2f4a; --line:#2a4163;
+  --accent:#3f6b4f; --accent-hi:#5c9272; --text:#e8e4d9; --muted:#a3a89f; --warn:#d9a35b; --bad:#d97a6a;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:16px;line-height:1.4;overflow-x:hidden}
+body{padding:env(safe-area-inset-top) env(safe-area-inset-right) calc(24px + env(safe-area-inset-bottom)) env(safe-area-inset-left);max-width:720px;margin:0 auto}
+h1{font-size:20px;margin:0}
+h2{font-size:18px;margin:0 0 10px}
+header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px 8px}
+header .sub{color:var(--muted);font-size:13px}
+button{font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:12px;min-height:48px;padding:10px 14px;cursor:pointer}
+button:active{filter:brightness(1.2)}
+button.primary{background:var(--accent);border-color:var(--accent-hi);font-weight:600}
+button.danger{border-color:var(--bad);color:var(--bad);background:transparent}
+button.small{min-height:40px;padding:6px 12px;font-size:14px}
+a{color:inherit}
+
+/* Map */
+.mapwrap{position:relative;margin:0 12px;border-radius:16px;overflow:hidden;border:1px solid var(--line)}
+#map{height:42vh;min-height:280px;max-height:460px;width:100%;background:#0b1422}
+.leaflet-tile-pane{filter:invert(1) hue-rotate(190deg) brightness(.9) contrast(.9) saturate(.55)}
+.leaflet-container{font-family:inherit}
+.leaflet-control-attribution{background:rgba(15,27,45,.8)!important;color:var(--muted)!important;font-size:10px}
+.leaflet-control-attribution a{color:var(--text)!important}
+.pin{display:flex;align-items:center;justify-content:center;border-radius:50%;font-weight:700;color:#fff;border:2px solid #e8e4d9;box-shadow:0 1px 4px rgba(0,0,0,.6)}
+.pin.home{background:#3f6b4f;font-size:18px}
+.pin.stop{background:#0f1b2d;font-size:12px}
+#mapStatus{position:absolute;left:10px;right:10px;bottom:10px;background:rgba(15,27,45,.94);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:14px;display:none;z-index:1000;gap:10px;align-items:center}
+#mapStatus.show{display:flex}
+#mapStatus.error{border-color:var(--bad)}
+#mapStatus .msg{flex:1}
+.spinner{width:20px;height:20px;border:3px solid var(--line);border-top-color:var(--accent-hi);border-radius:50%;animation:spin .8s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Summary */
+.summary{margin:12px;padding:14px;background:var(--panel);border:1px solid var(--line);border-radius:16px}
+.summary .rname{font-weight:700;font-size:17px;margin-bottom:2px}
+.summary .rnote{color:var(--muted);font-size:13px;margin-bottom:10px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--bg);border-radius:12px;padding:10px 6px;text-align:center}
+.stat b{display:block;font-size:20px;font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--muted)}
+.target{margin-top:10px;font-size:13px;color:var(--muted)}
+.target b{color:var(--text)}
+.meter{height:8px;background:var(--bg);border-radius:6px;margin-top:6px;overflow:hidden}
+.meter i{display:block;height:100%;background:var(--accent-hi);border-radius:6px}
+
+/* Tabs */
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:0 12px 12px}
+.tabs button{min-height:48px;padding:6px 2px;font-size:14px;border-radius:12px}
+.tabs button.on{background:var(--accent);border-color:var(--accent-hi);font-weight:700}
+section.tab{display:none;margin:0 12px}
+section.tab.on{display:block}
+
+/* Chips */
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.chip{min-height:44px;border-radius:22px;padding:8px 14px;font-size:14px}
+.chip.on{background:var(--accent);border-color:var(--accent-hi);font-weight:700}
+.chiplabel{font-size:13px;color:var(--muted);margin:0 0 6px}
+
+/* Route cards */
+.card{background:var(--panel);border:2px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px;cursor:pointer}
+.card.sel{border-color:var(--accent-hi);background:#183327}
+.card .top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.card .title{font-weight:700;font-size:16px}
+.badge{flex:none;background:var(--accent);border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700}
+.card .stops{color:var(--muted);font-size:13px;margin:6px 0 8px}
+.card .mini{display:flex;gap:14px;font-size:14px;margin-bottom:10px;font-variant-numeric:tabular-nums;flex-wrap:wrap}
+.card .mini span{color:var(--muted)}
+.card .btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.card .btns .full{grid-column:1/-1}
+
+/* Week */
+.day{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin-bottom:8px;min-height:56px;cursor:pointer}
+.day.today{border-color:var(--accent-hi);background:#183327}
+.day .d{width:44px;font-weight:700}
+.day .r{flex:1;font-size:14px}
+.day .r small{display:block;color:var(--muted)}
+.day .done{color:var(--accent-hi);font-weight:700}
+
+/* Progress */
+.chart{display:flex;align-items:flex-end;gap:6px;height:180px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 10px 8px;position:relative}
+.col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;position:relative;z-index:1}
+.col .bar{width:100%;max-width:34px;background:var(--accent);border-radius:6px 6px 0 0;min-height:2px}
+.col .bar.hit{background:var(--accent-hi)}
+.col .val{font-size:10px;color:var(--muted);margin-bottom:2px;white-space:nowrap}
+.col .lab{font-size:12px;margin-top:4px;color:var(--muted)}
+.col.today .lab{color:var(--text);font-weight:700}
+.goal{position:absolute;left:10px;right:10px;border-top:1px dashed var(--warn);z-index:0}
+.goal em{position:absolute;right:0;top:-16px;font-style:normal;font-size:10px;color:var(--warn)}
+.chartwrap{margin-bottom:14px}
+.kpis{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+.logrow{display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 12px;margin-bottom:8px;font-size:14px}
+.logrow small{color:var(--muted);display:block}
+
+/* Settings */
+.field{margin-bottom:14px}
+.field label{display:block;margin-bottom:4px;font-size:14px;color:var(--muted)}
+input[type=number]{width:100%;min-height:52px;font:inherit;font-size:18px;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 12px}
+input[type=number]:focus{outline:2px solid var(--accent-hi)}
+.hint{font-size:13px;color:var(--muted);margin:4px 0 0}
+.note{font-size:12px;color:var(--muted);margin-top:18px}
+.empty{color:var(--muted);padding:12px;text-align:center}
+
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);background:var(--accent);border:1px solid var(--accent-hi);padding:12px 18px;border-radius:12px;opacity:0;transition:.25s;pointer-events:none;z-index:3000;max-width:90vw;text-align:center}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>🚶 Walk 10k</h1>
+    <div class="sub">Every walk starts and ends at home</div>
+  </div>
+</header>
+
+<div class="mapwrap">
+  <div id="map" aria-label="Walking route map"></div>
+  <div id="mapStatus"><div class="spinner"></div><div class="msg"></div><button class="small" id="retryBtn" style="display:none">Retry</button></div>
+</div>
+
+<div class="summary" id="summary"></div>
+
+<nav class="tabs" role="tablist">
+  <button data-tab="routes" class="on">Routes</button>
+  <button data-tab="week">Week</button>
+  <button data-tab="progress">Progress</button>
+  <button data-tab="settings">Settings</button>
+</nav>
+
+<section class="tab on" id="tab-routes">
+  <p class="chiplabel">Step target</p>
+  <div class="chips" id="chips"></div>
+  <div id="routeList"></div>
+</section>
+
+<section class="tab" id="tab-week">
+  <h2>Suggested week</h2>
+  <div id="weekList"></div>
+  <p class="hint">Tap a day to show its route on the map.</p>
+</section>
+
+<section class="tab" id="tab-progress">
+  <h2>Last 7 days</h2>
+  <div class="kpis" id="kpis"></div>
+  <div class="chartwrap" id="chartWrap"></div>
+  <h2>Recent walks</h2>
+  <div id="logList"></div>
+</section>
+
+<section class="tab" id="tab-settings">
+  <h2>Settings</h2>
+  <div class="field">
+    <label for="stride">Stride length (cm)</label>
+    <input type="number" id="stride" inputmode="decimal" min="40" max="150" step="1">
+    <p class="hint">Steps = distance ÷ stride.</p>
+  </div>
+  <div class="field">
+    <label for="pace">Walking pace (km/h)</label>
+    <input type="number" id="pace" inputmode="decimal" min="1" max="10" step="0.1">
+    <p class="hint">Time = distance ÷ pace.</p>
+  </div>
+  <button id="resetSettings">Reset to defaults (76 cm, 4.3 km/h)</button>
+  <div style="height:10px"></div>
+  <button id="clearCache">Re-fetch route lines and places</button>
+  <p class="note">Maps © OpenStreetMap contributors. Places found with Nominatim. Walking routes from OSRM (routing.openstreetmap.de foot profile, with the OSRM demo server as backup). Everything you log stays on this device.</p>
+</section>
+
+<div id="toast"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+"use strict";
+
+/* =====================================================================
+   EDIT HERE: your home, places and routes
+   ===================================================================== */
+const HOME = {
+  label: "21 Church St, York, ON M9N 1M4",
+  queries: ["21 Church Street, Toronto, Ontario M9N 1M4", "21 Church Street, Weston, Toronto"],
+  fallback: [43.7003, -79.5180]            // approximate Weston centre, used only if lookup fails
+};
+
+// Each place: name shown to you, queries tried in order with Nominatim (first is also used for Google Maps)
+const PLACES = {
+  lions:      { name: "Weston Lions Park",                    queries: ["Weston Lions Park, Toronto"] },
+  cruickshank:{ name: "Cruickshank Park",                     queries: ["Cruickshank Park, Toronto"] },
+  humberTrail:{ name: "Humber River Recreational Trail",      queries: ["Humber River Recreational Trail, Weston, Toronto", "Humber River Recreational Trail, Toronto"] },
+  portage:    { name: "Portage Trail Community School",       queries: ["100 Sidney Belsey Crescent, Toronto", "Portage Trail Community School, Toronto"] },
+  ukrainian:  { name: "Ukrainian Canadian Memorial Park",     queries: ["Ukrainian Canadian Memorial Park, Toronto"] },
+  chapmanCreek:{name: "Humber Creek at Scarlett Rd and Chapman", queries: ["Humber Creek, Scarlett Road and Chapman Avenue, Toronto", "Scarlett Road and Chapman Avenue, Toronto", "Chapman Avenue, Toronto"] },
+  upStation:  { name: "Weston UP Express Station",            queries: ["Weston UP Express Station, Toronto", "Weston GO Station, Toronto"] },
+  raymore:    { name: "Raymore Park",                         queries: ["Raymore Park, Toronto"] },
+  emmett:     { name: "Emmett Waterfall",                     queries: ["Emmett Waterfall, Toronto", "Emmett Avenue waterfall, Toronto", "Emmett Avenue, Toronto"] },
+  westmount:  { name: "Westmount Park",                       queries: ["Westmount Park, Toronto"] },
+  chapmanPark:{ name: "Chapman Valley Park",                  queries: ["Chapman Valley Park, Toronto"] }
+};
+
+const ROUTE2_STOPS = ["humberTrail", "portage", "ukrainian", "chapmanCreek"];
+
+// target = the step goal this route is built for (10000, 12500 or 15000)
+const ROUTES = [
+  { id: 1, name: "Route 1 · Weekday standard",              target: 10000, stops: ["lions", "cruickshank"] },
+  { id: 2, name: "Route 2 · Humber trail and Portage loop", target: 10000, stops: ROUTE2_STOPS, note: "Checked at 7.3 km in Google Maps" },
+  { id: 3, name: "Route 3 · Weston village and Raymore",    target: 10000, stops: ["upStation", "lions", "raymore", "emmett"] },
+  { id: 4, name: "Route 4 · Cruickshank to Chapman",        target: 12500, stops: ["cruickshank", "chapmanCreek", "emmett", "raymore"] },
+  { id: 5, name: "Route 5 · Portage loop extended",         target: 15000, stops: [...ROUTE2_STOPS, "westmount", "chapmanPark"], note: "Route 2 plus Westmount Park and Chapman Valley Park" },
+  { id: 6, name: "Route 6 · Big Humber 15k",                target: 15000, stops: ["lions", "raymore", "emmett", "ukrainian", "chapmanPark", "cruickshank"] }
+];
+
+// Suggested week: index 0 = Sunday ... 6 = Saturday, value = route id
+const WEEK = { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 5, 0: 6 };
+
+const TARGETS = [10000, 12500, 15000];
+const DEFAULTS = { stride: 76, pace: 4.3 };
+const GOAL_STEPS = 10000;
+
+const ROUTERS = [
+  "https://routing.openstreetmap.de/routed-foot/route/v1/foot",
+  "https://router.project-osrm.org/route/v1/foot"
+];
+// Nominatim search box (left,top,right,bottom) around Toronto so we never get the wrong city
+const VIEWBOX = "-79.75,43.85,-79.20,43.55";
+
+/* =====================================================================
+   Storage helpers (all wrapped in try/catch)
+   ===================================================================== */
+const KEYS = { settings: "walk10k.settings.v1", log: "walk10k.log.v1", geo: "walk10k.geo.v1", routes: "walk10k.routes.v1" };
+function lsGet(key, fallback) {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch (e) { return fallback; }
+}
+function lsSet(key, val) {
+  try { localStorage.setItem(key, JSON.stringify(val)); return true; } catch (e) { return false; }
+}
+function lsDel(key) { try { localStorage.removeItem(key); } catch (e) {} }
+
+/* =====================================================================
+   State
+   ===================================================================== */
+const state = {
+  settings: loadSettings(),
+  log: Array.isArray(lsGet(KEYS.log, [])) ? lsGet(KEYS.log, []) : [],
+  geo: lsGet(KEYS.geo, {}) || {},
+  results: {},            // route id -> {sig, distance, line, home, stops, skipped}
+  selected: 1,
+  filter: null,
+  loadToken: 0,
+  loading: false,
+  error: null
+};
+const savedRoutes = lsGet(KEYS.routes, {}) || {};
+for (const id of Object.keys(savedRoutes)) {
+  const r = ROUTES.find(x => String(x.id) === id);
+  if (r && savedRoutes[id] && savedRoutes[id].sig === sigOf(r)) state.results[r.id] = savedRoutes[id];
+}
+
+function loadSettings() {
+  const s = lsGet(KEYS.settings, {}) || {};
+  const stride = Number(s.stride), pace = Number(s.pace);
+  return {
+    stride: stride >= 40 && stride <= 150 ? stride : DEFAULTS.stride,
+    pace: pace >= 1 && pace <= 10 ? pace : DEFAULTS.pace
+  };
+}
+function sigOf(r) { return r.stops.join(",") + "|" + HOME.label; }
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmt = n => Math.round(n).toLocaleString("en-CA");
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* =====================================================================
+   Calculations
+   ===================================================================== */
+function calc(distanceM) {
+  const km = distanceM / 1000;
+  return {
+    km,
+    steps: Math.round(distanceM / (state.settings.stride / 100)),
+    minutes: km / state.settings.pace * 60
+  };
+}
+function fmtTime(min) {
+  const total = Math.round(min), h = Math.floor(total / 60), m = total % 60;
+  return h > 0 ? `${h} h ${m} min` : `${m} min`;
+}
+function dateKey(d) {
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+function routeById(id) { return ROUTES.find(r => r.id === id); }
+
+/* =====================================================================
+   Geocoding (Nominatim) and routing (OSRM)
+   ===================================================================== */
+let lastNominatim = 0;
+async function nominatim(query) {
+  const wait = 1100 - (Date.now() - lastNominatim);   // Nominatim allows 1 request / second
+  if (wait > 0) await sleep(wait);
+  lastNominatim = Date.now();
+  const url = "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=ca&bounded=1" +
+    "&viewbox=" + VIEWBOX + "&q=" + encodeURIComponent(query);
+  const data = await fetchJson(url, 12000);
+  if (Array.isArray(data) && data.length) {
+    const lat = parseFloat(data[0].lat), lon = parseFloat(data[0].lon);
+    if (isFinite(lat) && isFinite(lon)) return [lat, lon];
+  }
+  return null;
+}
+async function fetchJson(url, timeoutMs) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return await res.json();
+  } finally { clearTimeout(t); }
+}
+// Try each query until one is found. Returns [lat, lon] or null. Throws on network failure.
+async function geocode(queries) {
+  for (const q of queries) {
+    if (state.geo[q]) return state.geo[q];
+  }
+  for (const q of queries) {
+    const ll = await nominatim(q);
+    if (ll) { state.geo[q] = ll; lsSet(KEYS.geo, state.geo); return ll; }
+  }
+  return null;
+}
+async function fetchRoute(points) {   // points: [[lat,lon],...]
+  const coords = points.map(p => p[1].toFixed(6) + "," + p[0].toFixed(6)).join(";");
+  let lastErr = null;
+  for (const base of ROUTERS) {
+    try {
+      const data = await fetchJson(`${base}/${coords}?overview=full&geometries=geojson&steps=false`, 20000);
+      if (data && data.code === "Ok" && data.routes && data.routes[0]) {
+        const rt = data.routes[0];
+        return {
+          distance: rt.distance,
+          line: rt.geometry.coordinates.map(c => [Math.round(c[1] * 1e5) / 1e5, Math.round(c[0] * 1e5) / 1e5])
+        };
+      }
+      lastErr = new Error((data && data.code) || "No route");
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error("Routing failed");
+}
+
+/* =====================================================================
+   Map
+   ===================================================================== */
+const map = L.map("map", { zoomControl: true, attributionControl: true }).setView(HOME.fallback, 14);
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+}).addTo(map);
+const layer = L.layerGroup().addTo(map);
+
+function pinIcon(cls, html, size) {
+  return L.divIcon({ className: "", html: `<div class="pin ${cls}" style="width:${size}px;height:${size}px">${html}</div>`, iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
+}
+function drawRoute(res) {
+  layer.clearLayers();
+  const line = L.polyline(res.line, { color: "#7ccb98", weight: 5, opacity: 0.95, lineJoin: "round" }).addTo(layer);
+  L.marker(res.home, { icon: pinIcon("home", "🏠", 34), title: "Home" }).addTo(layer).bindTooltip("Home: " + HOME.label);
+  res.stops.forEach((s, i) => {
+    L.marker(s.ll, { icon: pinIcon("stop", String(i + 1), 24), title: s.name }).addTo(layer).bindTooltip(`${i + 1}. ${s.name}`);
+  });
+  map.fitBounds(line.getBounds(), { padding: [24, 24] });
+}
+function drawHomeOnly() {
+  layer.clearLayers();
+  const home = homeLatLng();
+  L.marker(home, { icon: pinIcon("home", "🏠", 34) }).addTo(layer).bindTooltip("Home: " + HOME.label);
+  map.setView(home, 14);
+}
+function homeLatLng() {
+  for (const q of HOME.queries) if (state.geo[q]) return state.geo[q];
+  return HOME.fallback;
+}
+function setStatus(kind, msg, showRetry) {
+  const el = $("mapStatus");
+  el.className = kind ? "show" + (kind === "error" ? " error" : "") : "";
+  el.querySelector(".msg").textContent = msg || "";
+  el.querySelector(".spinner").style.display = kind === "loading" ? "block" : "none";
+  $("retryBtn").style.display = showRetry ? "block" : "none";
+}
+
+/* =====================================================================
+   Loading a route: geocode stops -> OSRM -> draw
+   ===================================================================== */
+async function loadRoute(route, force) {
+  const token = ++state.loadToken;
+  state.error = null;
+  if (!force && state.results[route.id]) {
+    drawRoute(state.results[route.id]);
+    setStatus(null);
+    state.loading = false;
+    renderAll();
+    return;
+  }
+  state.loading = true;
+  renderAll();
+  try {
+    setStatus("loading", "Finding your home address…");
+    let home = null;
+    for (const q of HOME.queries) { if (state.geo[q]) { home = state.geo[q]; break; } }
+    if (!home) home = await geocode(HOME.queries);
+    if (token !== state.loadToken) return;
+    let homeApprox = false;
+    if (!home) { home = HOME.fallback; homeApprox = true; }
+
+    const stops = [], skipped = [];
+    for (let i = 0; i < route.stops.length; i++) {
+      const p = PLACES[route.stops[i]];
+      setStatus("loading", `Finding places ${i + 1} of ${route.stops.length}: ${p.name}…`);
+      const ll = await geocode(p.queries);
+      if (token !== state.loadToken) return;
+      if (ll) stops.push({ key: route.stops[i], name: p.name, ll }); else skipped.push(p.name);
+    }
+    if (!stops.length) throw new Error("NOSTOPS");
+
+    setStatus("loading", "Plotting the walking route…");
+    const rt = await fetchRoute([home, ...stops.map(s => s.ll), home]);
+    if (token !== state.loadToken) return;
+
+    const res = { sig: sigOf(route), distance: rt.distance, line: rt.line, home, homeApprox, stops, skipped };
+    state.results[route.id] = res;
+    const store = lsGet(KEYS.routes, {}) || {};
+    store[route.id] = res;
+    lsSet(KEYS.routes, store);
+
+    state.loading = false;
+    drawRoute(res);
+    const notes = [];
+    if (skipped.length) notes.push("Couldn't find: " + skipped.join(", ") + " (left out)");
+    if (homeApprox) notes.push("Home position is approximate");
+    setStatus(notes.length ? "loading" : null, notes.join(". "), false);
+    if (notes.length) { $("mapStatus").querySelector(".spinner").style.display = "none"; setTimeout(() => { if (token === state.loadToken) setStatus(null); }, 7000); }
+    renderAll();
+  } catch (e) {
+    if (token !== state.loadToken) return;
+    state.loading = false;
+    const offline = e && (e.name === "TypeError" || e.name === "AbortError" || /HTTP|Failed|network/i.test(e.message || ""));
+    state.error = e && e.message === "NOSTOPS"
+      ? "Couldn't find any of this route's places on the map."
+      : offline ? "Couldn't reach the map services. Check your connection and try again."
+      : "The routing service couldn't build this walk right now. Please try again in a moment.";
+    drawHomeOnly();
+    setStatus("error", state.error, true);
+    renderAll();
+  }
+}
+function selectRoute(id, scrollToMap) {
+  state.selected = id;
+  loadRoute(routeById(id), false);
+  if (scrollToMap) window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+/* =====================================================================
+   Google Maps link
+   ===================================================================== */
+function googleUrl(route) {
+  const wp = route.stops.map(k => PLACES[k].queries[0]).join("|");
+  const p = new URLSearchParams({
+    api: "1", travelmode: "walking",
+    origin: HOME.label, destination: HOME.label, waypoints: wp
+  });
+  return "https://www.google.com/maps/dir/?" + p.toString();
+}
+
+/* =====================================================================
+   Rendering
+   ===================================================================== */
+function renderAll() { renderSummary(); renderChips(); renderRoutes(); renderWeek(); renderProgress(); }
+
+function renderSummary() {
+  const r = routeById(state.selected), res = state.results[r.id];
+  let stats;
+  if (res) {
+    const c = calc(res.distance);
+    stats = `<div class="stats">
+      <div class="stat"><b>${fmt(c.steps)}</b><span>steps</span></div>
+      <div class="stat"><b>${c.km.toFixed(1)}</b><span>km</span></div>
+      <div class="stat"><b>${fmtTime(c.minutes)}</b><span>walking</span></div></div>
+      <div class="target">Target <b>${fmt(r.target)}</b> steps · this route is <b>${Math.round(c.steps / r.target * 100)}%</b> of it
+      <div class="meter"><i style="width:${Math.min(100, c.steps / r.target * 100)}%"></i></div></div>`;
+  } else {
+    stats = `<div class="stats">
+      <div class="stat"><b>–</b><span>steps</span></div>
+      <div class="stat"><b>–</b><span>km</span></div>
+      <div class="stat"><b>–</b><span>walking</span></div></div>
+      <div class="target">Target <b>${fmt(r.target)}</b> steps · ${state.loading ? "calculating from the real route…" : "route not loaded yet"}</div>`;
+  }
+  $("summary").innerHTML = `<div class="rname">${esc(r.name)}</div><div class="rnote">${esc(r.note || "Home → " + r.stops.map(k => PLACES[k].name).join(" → ") + " → Home")}</div>${stats}`;
+}
+
+function renderChips() {
+  const opts = [null, ...TARGETS];
+  $("chips").innerHTML = opts.map(t =>
+    `<button class="chip ${state.filter === t ? "on" : ""}" data-filter="${t === null ? "" : t}">${t === null ? "All" : fmt(t)}</button>`).join("");
+}
+
+function renderRoutes() {
+  const list = ROUTES.filter(r => !state.filter || r.target === state.filter);
+  if (!list.length) { $("routeList").innerHTML = `<div class="empty">No routes for that target yet.</div>`; return; }
+  $("routeList").innerHTML = list.map(r => {
+    const res = state.results[r.id];
+    let mini;
+    if (res) {
+      const c = calc(res.distance);
+      mini = `<div class="mini"><div>${fmt(c.steps)} <span>steps</span></div><div>${c.km.toFixed(1)} <span>km</span></div><div>${fmtTime(c.minutes)}</div></div>`;
+    } else {
+      mini = `<div class="mini"><span>Tap to load the real distance</span></div>`;
+    }
+    return `<div class="card ${r.id === state.selected ? "sel" : ""}" data-route="${r.id}">
+      <div class="top"><div class="title">${esc(r.name)}</div><div class="badge">${fmt(r.target)}</div></div>
+      <div class="stops">${esc(r.note ? r.note + ". " : "")}Via ${esc(r.stops.map(k => PLACES[k].name).join(", "))}</div>
+      ${mini}
+      <div class="btns">
+        <button data-act="show" data-route="${r.id}">Show on map</button>
+        <a href="${esc(googleUrl(r))}" target="_blank" rel="noopener" style="text-decoration:none"><button class="primary" style="width:100%" tabindex="-1">Open in Google Maps</button></a>
+        <button class="full primary" data-act="walked" data-route="${r.id}">✓ I walked this</button>
+      </div></div>`;
+  }).join("");
+}
+
+function renderWeek() {
+  const names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const todayIdx = new Date().getDay(), todayKey = dateKey(new Date());
+  const walkedToday = new Set(state.log.filter(l => l.date === todayKey).map(l => l.routeId));
+  const order = [1, 2, 3, 4, 5, 6, 0];
+  $("weekList").innerHTML = order.map(d => {
+    const r = routeById(WEEK[d]);
+    const res = state.results[r.id];
+    const sub = res ? `${fmt(calc(res.distance).steps)} steps · ${calc(res.distance).km.toFixed(1)} km` : `Target ${fmt(r.target)} steps`;
+    return `<div class="day ${d === todayIdx ? "today" : ""}" data-route="${r.id}" data-act="weekpick">
+      <div class="d">${names[d]}</div>
+      <div class="r">${esc(r.name)}<small>${sub}</small></div>
+      ${d === todayIdx && walkedToday.has(r.id) ? '<div class="done">✓ done</div>' : ""}</div>`;
+  }).join("");
+}
+
+function stepsByDay() {
+  const out = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - i);
+    const key = dateKey(d);
+    out.push({ key, label: ["S", "M", "T", "W", "T", "F", "S"][d.getDay()], today: i === 0,
+      steps: state.log.filter(l => l.date === key).reduce((a, l) => a + l.steps, 0) });
+  }
+  return out;
+}
+function renderProgress() {
+  const days = stepsByDay();
+  const total = days.reduce((a, d) => a + d.steps, 0);
+  const hit = days.filter(d => d.steps >= GOAL_STEPS).length;
+  $("kpis").innerHTML = `<div class="stat"><b>${fmt(total / 7)}</b><span>avg steps / day</span></div>
+    <div class="stat"><b>${hit} / 7</b><span>days at ${fmt(GOAL_STEPS)}+</span></div>`;
+  const max = Math.max(15000, ...days.map(d => d.steps)) * 1.05;
+  $("chartWrap").innerHTML = `<div class="chart">
+    <div class="goal"><em>10,000</em></div>
+    ${days.map(d => `<div class="col ${d.today ? "today" : ""}">
+      <div class="val">${d.steps ? fmt(d.steps) : ""}</div>
+      <div class="bar ${d.steps >= GOAL_STEPS ? "hit" : ""}" style="height:calc((100% - 44px) * ${(d.steps / max).toFixed(4)})"></div>
+      <div class="lab">${d.label}</div></div>`).join("")}</div>`;
+  positionGoalLine();
+
+  const recent = [...state.log].sort((a, b) => b.id - a.id).slice(0, 10);
+  $("logList").innerHTML = recent.length ? recent.map(l => {
+    const r = routeById(l.routeId);
+    return `<div class="logrow"><div>${esc(r ? r.name : "Walk")}<small>${esc(l.date)} · ${fmt(l.steps)} steps</small></div>
+      <button class="small danger" data-act="dellog" data-id="${l.id}" aria-label="Delete this walk">Delete</button></div>`;
+  }).join("") : `<div class="empty">No walks logged yet. Tap "I walked this" on a route.</div>`;
+}
+// Place the dashed 10,000 line at the exact bar scale used by the chart
+function positionGoalLine() {
+  const chart = document.querySelector(".chart"), goal = document.querySelector(".goal");
+  if (!chart || !goal) return;
+  const col = chart.querySelector(".col");
+  if (!col) return;
+  const days = stepsByDay();
+  const max = Math.max(15000, ...days.map(d => d.steps)) * 1.05;
+  const colRect = col.getBoundingClientRect(), chartRect = chart.getBoundingClientRect();
+  const labH = col.querySelector(".lab").offsetHeight + 4;
+  const barArea = colRect.height - 44;     // matches bar height formula
+  const bottomFromChart = (chartRect.bottom - colRect.bottom) + labH + barArea * (GOAL_STEPS / max);
+  goal.style.bottom = bottomFromChart + "px";
+}
+
+/* =====================================================================
+   Actions
+   ===================================================================== */
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove("show"), 2200);
+}
+function logWalk(routeId) {
+  const r = routeById(routeId), res = state.results[routeId];
+  const steps = res ? calc(res.distance).steps : r.target;
+  state.log.push({ id: Date.now() + Math.floor(Math.random() * 1000), date: dateKey(new Date()), routeId, steps });
+  lsSet(KEYS.log, state.log);
+  renderAll();
+  toast(`Logged ${fmt(steps)} steps${res ? "" : " (target — load the route for exact steps)"}`);
+}
+function switchTab(name) {
+  document.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("on", b.dataset.tab === name));
+  document.querySelectorAll("section.tab").forEach(s => s.classList.toggle("on", s.id === "tab-" + name));
+  if (name === "progress") positionGoalLine();
+}
+
+document.addEventListener("click", e => {
+  const tab = e.target.closest(".tabs button");
+  if (tab) { switchTab(tab.dataset.tab); return; }
+  const chip = e.target.closest(".chip");
+  if (chip) { state.filter = chip.dataset.filter ? Number(chip.dataset.filter) : null; renderChips(); renderRoutes(); return; }
+  const act = e.target.closest("[data-act]");
+  if (act) {
+    const a = act.dataset.act;
+    if (a === "show") { selectRoute(Number(act.dataset.route), true); return; }
+    if (a === "walked") { logWalk(Number(act.dataset.route)); return; }
+    if (a === "dellog") {
+      state.log = state.log.filter(l => String(l.id) !== act.dataset.id);
+      lsSet(KEYS.log, state.log); renderAll(); return;
+    }
+    if (a === "weekpick") { switchTab("routes"); selectRoute(Number(act.dataset.route), true); return; }
+  }
+  if (e.target.closest("a")) return;           // let Google Maps links work
+  const card = e.target.closest(".card");
+  if (card) selectRoute(Number(card.dataset.route), true);
+});
+$("retryBtn").addEventListener("click", () => loadRoute(routeById(state.selected), true));
+
+function bindSetting(id, key, min, max) {
+  const el = $(id);
+  el.value = state.settings[key];
+  el.addEventListener("change", () => {
+    const v = parseFloat(el.value);
+    if (isFinite(v) && v >= min && v <= max) {
+      state.settings[key] = v; lsSet(KEYS.settings, state.settings); renderAll();
+      toast("Saved");
+    } else {
+      el.value = state.settings[key];
+      toast(`Enter a value from ${min} to ${max}`);
+    }
+  });
+}
+bindSetting("stride", "stride", 40, 150);
+bindSetting("pace", "pace", 1, 10);
+$("resetSettings").addEventListener("click", () => {
+  state.settings = { ...DEFAULTS }; lsSet(KEYS.settings, state.settings);
+  $("stride").value = DEFAULTS.stride; $("pace").value = DEFAULTS.pace;
+  renderAll(); toast("Defaults restored");
+});
+$("clearCache").addEventListener("click", () => {
+  lsDel(KEYS.geo); lsDel(KEYS.routes);
+  state.geo = {}; state.results = {};
+  toast("Re-fetching…");
+  loadRoute(routeById(state.selected), true);
+});
+window.addEventListener("resize", () => { map.invalidateSize(); positionGoalLine(); });
+
+/* =====================================================================
+   Start
+   ===================================================================== */
+renderAll();
+drawHomeOnly();
+loadRoute(routeById(state.selected), false);
+</script>
+</body>
+</html>
